@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.ML" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="NModbus" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="OpenCvSharp4" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PackInspect.Core\PackInspect.Core.csproj" />
+    <ProjectReference Include="..\PackInspect.LegacyDriver\PackInspect.LegacyDriver.vbproj" />
+  </ItemGroup>
+
+</Project>
