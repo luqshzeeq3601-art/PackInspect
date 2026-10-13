@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PackInspect.Core\PackInspect.Core.csproj" />
+    <ProjectReference Include="..\..\src\PackInspect.Devices\PackInspect.Devices.csproj" />
+    <ProjectReference Include="..\..\src\PackInspect.Data\PackInspect.Data.csproj" />
+    <ProjectReference Include="..\..\src\PackInspect.Simulator\PackInspect.Simulator.csproj" />
+    <ProjectReference Include="..\..\src\PackInspect.LegacyDriver\PackInspect.LegacyDriver.vbproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

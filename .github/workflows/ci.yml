@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build, Test & Lint
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Restore dependencies
+        run: dotnet restore PackInspect.slnx
+
+      # 'dotnet list package' exits with 0 even when it finds something, so the
+      # report is searched and the job is failed by hand.
+      - name: Check for vulnerable dependencies
+        shell: pwsh
+        run: |
+          $report = dotnet list PackInspect.slnx package --vulnerable --include-transitive | Out-String
+          Write-Host $report
+          if ($report -match 'has the following vulnerable packages') { exit 1 }
+
+      - name: Build solution
+        run: dotnet build PackInspect.slnx --configuration Release --no-restore
+
+      - name: Run unit and integration tests
+        run: dotnet test --solution PackInspect.slnx --configuration Release --no-build
+
+      - name: Verify code formatting
+        run: dotnet format PackInspect.slnx --verify-no-changes

@@ -1,0 +1,714 @@
+<Window x:Class="PackInspect.App.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:PackInspect.App.Converters"
+        xmlns:views="clr-namespace:PackInspect.App.Views"
+        xmlns:domain="clr-namespace:PackInspect.Core.Domain;assembly=PackInspect.Core"
+        xmlns:machine="clr-namespace:PackInspect.Core.Machine;assembly=PackInspect.Core"
+        xmlns:devices="clr-namespace:PackInspect.Core.Devices;assembly=PackInspect.Core"
+        xmlns:auth="clr-namespace:PackInspect.Core.Auth;assembly=PackInspect.Core"
+        Title="PackInspect (simulated station)"
+        Width="1320"
+        Height="840"
+        MinWidth="1150"
+        MinHeight="720">
+  <Window.Resources>
+    <converters:CapturedImageConverter x:Key="CapturedImage" />
+    <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+    <Style x:Key="MachineButton" TargetType="Button">
+      <Setter Property="MinWidth" Value="92" />
+      <Setter Property="Height" Value="44" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="FontSize" Value="15" />
+    </Style>
+
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#555555" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+    </Style>
+
+    <Style x:Key="FieldValue" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Pass in green, Fail in red, wherever a verdict is shown as text. -->
+    <Style x:Key="VerdictValue" BasedOn="{StaticResource FieldValue}" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#2E7D32" />
+      <Style.Triggers>
+        <Trigger Property="Text" Value="Fail">
+          <Setter Property="Foreground" Value="#C62828" />
+        </Trigger>
+      </Style.Triggers>
+    </Style>
+  </Window.Resources>
+
+  <Grid>
+    <Grid Margin="16">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <!-- Top Header: Station branding + Current User status bar -->
+      <Border Grid.Row="0" Margin="0,0,0,12" Padding="12,8" Background="#ECEFF1" CornerRadius="4">
+        <DockPanel LastChildFill="False">
+          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock FontSize="16" FontWeight="Bold" Foreground="#263238" Text="PackInspect" />
+            <TextBlock Margin="8,0,0,0" VerticalAlignment="Center" FontSize="13" Foreground="#78909C" Text="• Simulated Package Inspection &amp; Test Station" />
+          </StackPanel>
+
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" DataContext="{Binding Auth}">
+            <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="#455A64">
+              <Run Text="Operator Session:" />
+              <Run FontWeight="SemiBold" Text="{Binding CurrentUser.UserName, FallbackValue=(Not logged in)}" />
+              <Run Foreground="#546E7A" Text="{Binding CurrentUser.Role, StringFormat={}[{0}]}" />
+            </TextBlock>
+            <Button Margin="12,0,0,0" Padding="10,4" Command="{Binding OpenLoginDialogCommand}" Content="Switch user" />
+            <Button Margin="6,0,0,0" Padding="10,4" Command="{Binding LogoutCommand}" Content="Log out" IsEnabled="{Binding IsAuthenticated}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <!-- Main Layout -->
+      <Grid Grid.Row="1">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="5*" />
+          <ColumnDefinition Width="16" />
+          <ColumnDefinition Width="7*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left Column: The Machine controls, live state, and alarm panel -->
+        <Grid Grid.Column="0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <!-- Machine state banner: the colour follows the state. -->
+          <Border Grid.Row="0" Padding="20,14" CornerRadius="4">
+            <Border.Style>
+              <Style TargetType="Border">
+                <Setter Property="Background" Value="#607D8B" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding State}" Value="{x:Static machine:MachineState.Homing}">
+                    <Setter Property="Background" Value="#1565C0" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding State}" Value="{x:Static machine:MachineState.Ready}">
+                    <Setter Property="Background" Value="#00796B" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding State}" Value="{x:Static machine:MachineState.Running}">
+                    <Setter Property="Background" Value="#2E7D32" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding State}" Value="{x:Static machine:MachineState.Paused}">
+                    <Setter Property="Background" Value="#EF6C00" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding State}" Value="{x:Static machine:MachineState.Alarm}">
+                    <Setter Property="Background" Value="#C62828" />
+                  </DataTrigger>
+                  <DataTrigger Binding="{Binding State}" Value="{x:Static machine:MachineState.EStop}">
+                    <Setter Property="Background" Value="#7F0000" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Border.Style>
+            <StackPanel>
+              <TextBlock FontSize="13" Foreground="White" Opacity="0.85" Text="MACHINE STATE" />
+              <TextBlock FontSize="34" FontWeight="SemiBold" Foreground="White" Text="{Binding State}" />
+            </StackPanel>
+          </Border>
+
+          <StackPanel Grid.Row="1" Margin="0,12" Orientation="Horizontal">
+            <TextBlock FontSize="14" FontWeight="SemiBold">
+              <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                  <Setter Property="Text" Value="PLC: not connected" />
+                  <Setter Property="Foreground" Value="#C62828" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsPlcConnected}" Value="True">
+                      <Setter Property="Text" Value="PLC: connected" />
+                      <Setter Property="Foreground" Value="#2E7D32" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </TextBlock.Style>
+            </TextBlock>
+            <TextBlock Margin="32,0,0,0" FontSize="14" Text="{Binding CompletedCycles, StringFormat=Cycles completed: {0}}" />
+          </StackPanel>
+
+          <GroupBox Grid.Row="2" Header="Active alarms">
+            <ListView BorderThickness="0" ItemsSource="{Binding Alarms}">
+              <ListView.View>
+                <GridView>
+                  <GridViewColumn Width="70" DisplayMemberBinding="{Binding RaisedAt, StringFormat=HH:mm:ss}" Header="Time" />
+                  <GridViewColumn Width="180" DisplayMemberBinding="{Binding Code}" Header="Code" />
+                  <GridViewColumn Width="420" DisplayMemberBinding="{Binding Message}" Header="Message" />
+                </GridView>
+              </ListView.View>
+            </ListView>
+          </GroupBox>
+
+          <StackPanel Grid.Row="3" Margin="0,16,0,0" Orientation="Horizontal">
+            <Button Command="{Binding HomeCommand}" Content="Home" Style="{StaticResource MachineButton}" />
+            <Button Command="{Binding StartCommand}" Content="Start" Style="{StaticResource MachineButton}" />
+            <Button Command="{Binding PauseCommand}" Content="Pause" Style="{StaticResource MachineButton}" />
+            <Button Command="{Binding ResumeCommand}" Content="Resume" Style="{StaticResource MachineButton}" />
+            <Button Command="{Binding StopCommand}" Content="Stop" Style="{StaticResource MachineButton}" />
+            <Button Command="{Binding ResetCommand}" Content="Reset" Style="{StaticResource MachineButton}" />
+          </StackPanel>
+        </Grid>
+
+        <!-- Right Column: TabControl containing Production, Recipes, Audit Trail, and Users -->
+        <TabControl Grid.Column="2">
+          <!-- TAB 1: PRODUCTION -->
+          <TabItem Header="Production">
+            <Grid Margin="8" DataContext="{Binding Lot}">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+
+              <GroupBox Grid.Row="0" Padding="8" Header="Lot setup">
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Lot number" />
+                    <TextBox Width="150" Height="28" VerticalContentAlignment="Center" MaxLength="32" Text="{Binding LotNumber, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Margin="16,0,8,0" Style="{StaticResource FieldLabel}" Text="Quantity" />
+                    <TextBox Width="60" Height="28" VerticalContentAlignment="Center" MaxLength="5" Text="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock Margin="16,0,8,0" Style="{StaticResource FieldLabel}" Text="Recipe" />
+                    <ComboBox Width="190" Height="28" DisplayMemberPath="Name" ItemsSource="{Binding Recipes}" SelectedItem="{Binding SelectedRecipe}" />
+                  </StackPanel>
+                  <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                    <Button Width="100" Height="32" Command="{Binding OpenLotCommand}" Content="Open lot" />
+                    <Button Width="100" Height="32" Margin="8,0,0,0" Command="{Binding CloseLotCommand}" Content="Close lot" />
+                    <TextBlock Margin="16,0,0,0" VerticalAlignment="Center" Foreground="#555555">
+                      <Run Text="Limits:" />
+                      <Run Text="{Binding SelectedRecipe.Limits.Low, Mode=OneWay}" />
+                      <Run Text="to" />
+                      <Run Text="{Binding SelectedRecipe.Limits.High, Mode=OneWay}" />
+                      <Run Text="{Binding SelectedRecipe.MeasurementKind, Mode=OneWay, StringFormat=({0})}" />
+                    </TextBlock>
+                  </StackPanel>
+                  <TextBlock Margin="0,6,0,0" Foreground="#C62828" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                </StackPanel>
+              </GroupBox>
+
+              <GroupBox Grid.Row="1" Margin="0,8,0,0" Padding="8" Header="Lot summary">
+                <UniformGrid Columns="5">
+                  <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Lot" />
+                    <TextBlock Style="{StaticResource FieldValue}" Text="{Binding CurrentLot.LotNumber, FallbackValue=-}" />
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Tested / quantity" />
+                    <TextBlock Style="{StaticResource FieldValue}">
+                      <Run Text="{Binding CurrentLot.Total, Mode=OneWay, FallbackValue=0}" />
+                      <Run Text="/" />
+                      <Run Text="{Binding CurrentLot.Quantity, Mode=OneWay, FallbackValue=0}" />
+                    </TextBlock>
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Passed" />
+                    <TextBlock Foreground="#2E7D32" Style="{StaticResource FieldValue}" Text="{Binding CurrentLot.Passed, FallbackValue=0}" />
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Failed" />
+                    <TextBlock Foreground="#C62828" Style="{StaticResource FieldValue}" Text="{Binding CurrentLot.Failed, FallbackValue=0}" />
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Yield" />
+                    <TextBlock Style="{StaticResource FieldValue}" Text="{Binding CurrentLot.YieldPercent, StringFormat={}{0:0.0} %, FallbackValue=-}" />
+                  </StackPanel>
+                </UniformGrid>
+              </GroupBox>
+
+              <GroupBox Grid.Row="2" Margin="0,8,0,0" Padding="8" Header="Last unit">
+                <StackPanel Orientation="Horizontal">
+                  <Border Width="190" Height="190" Background="#EEEEEE" BorderBrush="#BBBBBB" BorderThickness="1">
+                    <Image Source="{Binding LastImage, Converter={StaticResource CapturedImage}}" Stretch="Uniform" />
+                  </Border>
+                  <Grid Margin="16,0,0,0" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="Auto" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="28" />
+                      <RowDefinition Height="28" />
+                      <RowDefinition Height="28" />
+                      <RowDefinition Height="28" />
+                      <RowDefinition Height="28" />
+                      <RowDefinition Height="34" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource FieldLabel}" Text="Unit" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource FieldValue}" Text="{Binding LastResult.Sequence, FallbackValue=-}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource FieldLabel}" Text="Vision" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource VerdictValue}" Text="{Binding LastResult.VisionVerdict, FallbackValue=-}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource FieldLabel}" Text="Defect" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldValue}" Text="{Binding LastResult.DefectType, FallbackValue=-}" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource FieldLabel}" Text="Measured" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource FieldValue}" Text="{Binding LastResult.MeasuredValue, StringFormat={}{0:G6}, FallbackValue=-}" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource FieldLabel}" Text="Electrical" />
+                    <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource VerdictValue}" Text="{Binding LastResult.ElectricalVerdict, FallbackValue=-}" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource FieldLabel}" Text="Result" />
+                    <TextBlock Grid.Row="5" Grid.Column="1" FontSize="20" Style="{StaticResource VerdictValue}" Text="{Binding LastResult.FinalVerdict, FallbackValue=-}" />
+                  </Grid>
+                </StackPanel>
+              </GroupBox>
+
+              <GroupBox Grid.Row="3" Margin="0,8,0,0" Header="Unit results (newest first)">
+                <DataGrid AutoGenerateColumns="False"
+                          BorderThickness="0"
+                          CanUserAddRows="False"
+                          HeadersVisibility="Column"
+                          IsReadOnly="True"
+                          ItemsSource="{Binding RecentResults}">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Width="50" Binding="{Binding Sequence}" Header="Unit" />
+                    <DataGridTextColumn Width="70" Binding="{Binding VisionVerdict}" Header="Vision" />
+                    <DataGridTextColumn Width="120" Binding="{Binding DefectType}" Header="Defect" />
+                    <DataGridTextColumn Width="100" Binding="{Binding MeasuredValue, StringFormat={}{0:G6}}" Header="Measured" />
+                    <DataGridTextColumn Width="80" Binding="{Binding ElectricalVerdict}" Header="Electrical" />
+                    <DataGridTextColumn Width="70" Binding="{Binding FinalVerdict}" Header="Result">
+                      <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                          <Setter Property="FontWeight" Value="SemiBold" />
+                          <Setter Property="Foreground" Value="#2E7D32" />
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding FinalVerdict}" Value="{x:Static domain:Verdict.Fail}">
+                              <Setter Property="Foreground" Value="#C62828" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Width="90" Binding="{Binding CycleTimeMs}" Header="Cycle (ms)" />
+                  </DataGrid.Columns>
+                </DataGrid>
+              </GroupBox>
+            </Grid>
+          </TabItem>
+
+          <!-- TAB 2: RECIPE EDITOR & SIGN-OFF -->
+          <TabItem Header="Recipe Management">
+            <Grid Margin="12" DataContext="{Binding RecipeEditor}">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
+
+              <!-- Top Toolbar -->
+              <Border Grid.Row="0" Margin="0,0,0,12" Padding="8" Background="#F5F5F5" CornerRadius="4">
+                <DockPanel LastChildFill="False">
+                  <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Select Recipe:" />
+                    <ComboBox Width="200" Height="28" DisplayMemberPath="Name" ItemsSource="{Binding Recipes}" SelectedItem="{Binding SelectedRecipe}" />
+                    <TextBlock Margin="16,0,0,0" VerticalAlignment="Center" Foreground="#555555">
+                      <Run Text="Current Version:" />
+                      <Run FontWeight="Bold" Text="{Binding SelectedRecipe.Version, FallbackValue=1}" />
+                    </TextBlock>
+                  </StackPanel>
+
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Width="90" Height="30" Margin="0,0,8,0" Command="{Binding StartEditCommand}" Content="Edit" IsEnabled="{Binding CanEdit}" />
+                    <Button Width="90" Height="30" Command="{Binding StartNewCommand}" Content="New Recipe" IsEnabled="{Binding CanEdit}" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+
+              <!-- Recipe Parameters Form -->
+              <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                  <GroupBox Header="General Identification">
+                    <Grid Margin="4">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Recipe Name" />
+                      <TextBox Grid.Column="1" Height="26" VerticalContentAlignment="Center" Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsEditing}" />
+                    </Grid>
+                  </GroupBox>
+
+                  <GroupBox Margin="0,8,0,0" Header="Motion Station Targets">
+                    <Grid Margin="4">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="20" />
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Camera Position (mm)" />
+                      <TextBox Grid.Column="1" Height="26" VerticalContentAlignment="Center" Text="{Binding CameraPositionMm, UpdateSourceTrigger=PropertyChanged}" />
+                      <TextBlock Grid.Column="3" Style="{StaticResource FieldLabel}" Text="Test Position (mm)" />
+                      <TextBox Grid.Column="4" Height="26" VerticalContentAlignment="Center" Text="{Binding TestPositionMm, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                  </GroupBox>
+
+                  <GroupBox Margin="0,8,0,0" Header="Vision Inspection Thresholds">
+                    <Grid Margin="4">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="20" />
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="34" />
+                      </Grid.RowDefinitions>
+
+                      <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Min Body Rectangularity" />
+                      <TextBox Grid.Row="0" Grid.Column="1" Height="26" VerticalContentAlignment="Center" Text="{Binding MinBodyRectangularity, UpdateSourceTrigger=PropertyChanged}" />
+
+                      <TextBlock Grid.Row="0" Grid.Column="3" Style="{StaticResource FieldLabel}" Text="Expected Lead Count" />
+                      <TextBox Grid.Row="0" Grid.Column="4" Height="26" VerticalContentAlignment="Center" Text="{Binding ExpectedLeadCount, UpdateSourceTrigger=PropertyChanged}" />
+
+                      <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Min Marking Pixels" />
+                      <TextBox Grid.Row="1" Grid.Column="1" Height="26" VerticalContentAlignment="Center" Text="{Binding MinMarkingPixels, UpdateSourceTrigger=PropertyChanged}" />
+
+                      <TextBlock Grid.Row="1" Grid.Column="3" Style="{StaticResource FieldLabel}" Text="Max Marking Pixels" />
+                      <TextBox Grid.Row="1" Grid.Column="4" Height="26" VerticalContentAlignment="Center" Text="{Binding MaxMarkingPixels, UpdateSourceTrigger=PropertyChanged}" />
+
+                      <TextBlock Grid.Row="2" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Max Defect Area (px)" />
+                      <TextBox Grid.Row="2" Grid.Column="1" Height="26" VerticalContentAlignment="Center" Text="{Binding MaxDefectAreaPx, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                  </GroupBox>
+
+                  <GroupBox Margin="0,8,0,0" Header="Electrical Measurement &amp; Pass/Fail Limits">
+                    <Grid Margin="4">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="20" />
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="34" />
+                      </Grid.RowDefinitions>
+
+                      <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Measurement Kind" />
+                      <ComboBox Grid.Row="0" Grid.Column="1" Height="26" SelectedItem="{Binding MeasurementKind}">
+                        <devices:MeasurementKind>Resistance</devices:MeasurementKind>
+                        <devices:MeasurementKind>DcVoltage</devices:MeasurementKind>
+                      </ComboBox>
+
+                      <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource FieldLabel}" Text="Low Limit" />
+                      <TextBox Grid.Row="1" Grid.Column="1" Height="26" VerticalContentAlignment="Center" Text="{Binding LowLimit, UpdateSourceTrigger=PropertyChanged}" />
+
+                      <TextBlock Grid.Row="1" Grid.Column="3" Style="{StaticResource FieldLabel}" Text="High Limit" />
+                      <TextBox Grid.Row="1" Grid.Column="4" Height="26" VerticalContentAlignment="Center" Text="{Binding HighLimit, UpdateSourceTrigger=PropertyChanged}" />
+                    </Grid>
+                  </GroupBox>
+                </StackPanel>
+              </ScrollViewer>
+
+              <!-- Bottom Actions and Notifications -->
+              <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                  <Button Width="150" Height="34" Margin="0,0,8,0" Command="{Binding RequestSignOffCommand}" Content="Save with Sign-Off" Background="#00796B" Foreground="White" FontWeight="SemiBold" IsEnabled="{Binding CanEdit}" />
+                  <Button Width="90" Height="34" Command="{Binding CancelEditCommand}" Content="Cancel" />
+                </StackPanel>
+                <TextBlock Margin="0,6,0,0" Foreground="#2E7D32" FontWeight="SemiBold" Text="{Binding StatusMessage}" />
+                <TextBlock Margin="0,4,0,0" Foreground="#C62828" Text="{Binding ErrorMessage}" />
+              </StackPanel>
+            </Grid>
+          </TabItem>
+
+          <!-- TAB 3: AUDIT TRAIL -->
+          <TabItem Header="Audit Trail">
+            <Grid Margin="12" DataContext="{Binding AuditTrail}">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+
+              <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="#555555" Text="Immutable trace log of all authentication events, user updates, and recipe changes." />
+                <Button DockPanel.Dock="Right" HorizontalAlignment="Right" Width="90" Height="28" Command="{Binding RefreshCommand}" Content="Refresh" />
+              </DockPanel>
+
+              <DataGrid Grid.Row="1"
+                        AutoGenerateColumns="False"
+                        BorderThickness="1"
+                        CanUserAddRows="False"
+                        HeadersVisibility="Column"
+                        IsReadOnly="True"
+                        ItemsSource="{Binding Entries}">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Width="135" Binding="{Binding TimestampUtc, StringFormat=yyyy-MM-dd HH:mm:ss}" Header="Timestamp (UTC)" />
+                  <DataGridTextColumn Width="100" Binding="{Binding UserName}" Header="User" />
+                  <DataGridTextColumn Width="120" Binding="{Binding Action}" Header="Action" />
+                  <DataGridTextColumn Width="80" Binding="{Binding Entity}" Header="Entity" />
+                  <DataGridTextColumn Width="120" Binding="{Binding Field}" Header="Field" />
+                  <DataGridTextColumn Width="90" Binding="{Binding OldValue}" Header="Old Value" />
+                  <DataGridTextColumn Width="90" Binding="{Binding NewValue}" Header="New Value" />
+                  <DataGridTextColumn Width="*" Binding="{Binding Reason}" Header="Reason / Justification" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </Grid>
+          </TabItem>
+
+          <!-- TAB 4: USERS (ADMIN CONSOLE) -->
+          <TabItem Header="Users (Admin)">
+            <Grid Margin="12" DataContext="{Binding UserManagement}">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+
+              <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="#555555" Text="User administration (Admin role only): create, deactivate, and unlock station accounts." />
+                <Button DockPanel.Dock="Right" HorizontalAlignment="Right" Width="90" Height="28" Command="{Binding RefreshCommand}" Content="Refresh" />
+              </DockPanel>
+
+              <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="6*" />
+                  <ColumnDefinition Width="16" />
+                  <ColumnDefinition Width="4*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Users table -->
+                <GroupBox Grid.Column="0" Header="Station Accounts">
+                  <Grid Margin="4">
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="*" />
+                      <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <DataGrid Grid.Row="0"
+                              AutoGenerateColumns="False"
+                              BorderThickness="0"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding Users}"
+                              SelectedItem="{Binding SelectedUser}">
+                      <DataGrid.Columns>
+                        <DataGridTextColumn Width="120" Binding="{Binding UserName}" Header="Username" />
+                        <DataGridTextColumn Width="90" Binding="{Binding Role}" Header="Role" />
+                        <DataGridTextColumn Width="70" Binding="{Binding IsActive}" Header="Active" />
+                        <DataGridTextColumn Width="90" Binding="{Binding FailedLogins}" Header="Failed Logins" />
+                        <DataGridTextColumn Width="130" Binding="{Binding LockedUntilUtc, StringFormat={}{0:HH:mm:ss UTC}}" Header="Locked Until" />
+                      </DataGrid.Columns>
+                    </DataGrid>
+
+                    <StackPanel Grid.Row="1" Margin="0,8,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+                      <Button Width="110" Height="30" Margin="0,0,8,0" Command="{Binding UnlockUserCommand}" Content="Unlock User" IsEnabled="{Binding CanManage}" />
+                      <Button Width="110" Height="30" Command="{Binding DeactivateUserCommand}" Content="Deactivate" IsEnabled="{Binding CanManage}" />
+                    </StackPanel>
+                  </Grid>
+                </GroupBox>
+
+                <!-- Create user form -->
+                <GroupBox Grid.Column="2" Header="Create New User">
+                  <StackPanel Margin="8">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Username" />
+                    <TextBox Height="28" Margin="0,4,0,10" VerticalContentAlignment="Center" Text="{Binding NewUserName, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Role" />
+                    <ComboBox Height="28" Margin="0,4,0,10" SelectedItem="{Binding NewRole}">
+                      <auth:UserRole>Operator</auth:UserRole>
+                      <auth:UserRole>Engineer</auth:UserRole>
+                      <auth:UserRole>Admin</auth:UserRole>
+                    </ComboBox>
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Initial Password (min 8 chars)" />
+                    <TextBox Height="28" Margin="0,4,0,14" VerticalContentAlignment="Center" Text="{Binding NewPassword, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <Button Height="32" Command="{Binding CreateUserCommand}" Content="Create Account" Background="#1565C0" Foreground="White" FontWeight="SemiBold" IsEnabled="{Binding CanManage}" />
+
+                    <TextBlock Margin="0,10,0,0" Foreground="#2E7D32" FontWeight="SemiBold" Text="{Binding StatusMessage}" />
+                    <TextBlock Margin="0,4,0,0" Foreground="#C62828" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </GroupBox>
+              </Grid>
+            </Grid>
+          </TabItem>
+
+          <!-- TAB 5: AI REVIEW (HUMAN IN THE LOOP) -->
+          <TabItem Header="AI Review">
+            <Grid Margin="12" DataContext="{Binding Review}">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+
+              <!-- Top: Metrics Dashboard Banner -->
+              <GroupBox Grid.Row="0" Margin="0,0,0,12" Padding="10" Header="AI Inspection Metrics &amp; Human-in-the-Loop Performance">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <StackPanel Grid.Column="0">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Reviewed Units" />
+                    <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding Metrics.TotalReviewed, FallbackValue=0}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="False-Call Rate (Overkill)" />
+                    <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#EF6C00" Text="{Binding Metrics.FalseCallRate, StringFormat={}{0:P1}, FallbackValue=0.0 %}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Escape Rate (Underkill)" />
+                    <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#C62828" Text="{Binding Metrics.EscapeRate, StringFormat={}{0:P1}, FallbackValue=0.0 %}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="3">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Operator Override Rate" />
+                    <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="#1565C0" Text="{Binding Metrics.OverrideRate, StringFormat={}{0:P1}, FallbackValue=0.0 %}" />
+                  </StackPanel>
+                  <Button Grid.Column="4" Width="90" Height="32" VerticalAlignment="Center" Command="{Binding RefreshCommand}" Content="Refresh" />
+                </Grid>
+              </GroupBox>
+
+              <!-- Main Content: Review Queue & Verification Inspector -->
+              <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="6*" />
+                  <ColumnDefinition Width="16" />
+                  <ColumnDefinition Width="5*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: Pending Reviews Table -->
+                <GroupBox Grid.Column="0" Header="Units Pending Operator Review">
+                  <DataGrid AutoGenerateColumns="False"
+                            BorderThickness="0"
+                            CanUserAddRows="False"
+                            HeadersVisibility="Column"
+                            IsReadOnly="True"
+                            ItemsSource="{Binding PendingReviews}"
+                            SelectedItem="{Binding SelectedReview}">
+                    <DataGrid.Columns>
+                      <DataGridTextColumn Width="60" Binding="{Binding Sequence}" Header="Seq" />
+                      <DataGridTextColumn Width="90" Binding="{Binding LotNumber}" Header="Lot" />
+                      <DataGridTextColumn Width="100" Binding="{Binding Barcode}" Header="Barcode" />
+                      <DataGridTextColumn Width="100" Binding="{Binding RuleDefectType}" Header="Rule Vision" />
+                      <DataGridTextColumn Width="110" Binding="{Binding AiLabel}" Header="AI Label" />
+                      <DataGridTextColumn Width="80" Binding="{Binding AiConfidence, StringFormat={}{0:P1}}" Header="Confidence" />
+                      <DataGridTextColumn Width="*" Binding="{Binding ModelVersion}" Header="Model" />
+                    </DataGrid.Columns>
+                  </DataGrid>
+                </GroupBox>
+
+                <!-- Right: Selected Unit Inspector & Actions -->
+                <GroupBox Grid.Column="2" Header="Inspection Verdict &amp; Operator Actions">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+                      <TextBlock Style="{StaticResource FieldLabel}" Text="Unit Details" />
+                      <TextBlock Margin="0,2,0,8" FontSize="14" FontWeight="SemiBold">
+                        <Run Text="Seq #" /><Run Text="{Binding SelectedReview.Sequence, Mode=OneWay, FallbackValue=-}" />
+                        <Run Text=" | Barcode: " /><Run Text="{Binding SelectedReview.Barcode, Mode=OneWay, FallbackValue=-}" />
+                      </TextBlock>
+
+                      <Border Width="190" Height="190" HorizontalAlignment="Left" Background="#EEEEEE" BorderBrush="#BBBBBB" BorderThickness="1">
+                        <Image Source="{Binding SelectedImageFile, TargetNullValue={x:Null}}" Stretch="Uniform" />
+                      </Border>
+
+                      <Border Margin="0,4,0,12" Padding="10" Background="#F5F5F5" CornerRadius="4">
+                        <UniformGrid Columns="2">
+                          <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Rule-Based Verdict" />
+                            <TextBlock Margin="0,2,0,0" FontSize="14" FontWeight="SemiBold" Text="{Binding SelectedReview.RuleDefectType, FallbackValue=-}" />
+                          </StackPanel>
+                          <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="AI Classification" />
+                            <TextBlock Margin="0,2,0,0" FontSize="14" FontWeight="SemiBold" Foreground="#1565C0">
+                              <Run Text="{Binding SelectedReview.AiLabel, Mode=OneWay, FallbackValue=-}" />
+                              <Run Text=" (" /><Run Text="{Binding SelectedReview.AiConfidence, Mode=OneWay, StringFormat={}{0:P1}, FallbackValue=-}" /><Run Text=")" />
+                            </TextBlock>
+                          </StackPanel>
+                        </UniformGrid>
+                      </Border>
+
+                      <TextBlock Style="{StaticResource FieldLabel}" Text="Operator Action" />
+                      <StackPanel Margin="0,8,0,0" Orientation="Horizontal">
+                        <Button Width="130" Height="36" Command="{Binding ConfirmCommand}" Content="Confirm AI Verdict" Background="#2E7D32" Foreground="White" FontWeight="SemiBold" />
+                      </StackPanel>
+
+                      <TextBlock Margin="0,16,0,4" Style="{StaticResource FieldLabel}" Text="Or Override with Correct Defect Class:" />
+                      <ComboBox Height="32" Margin="0,2,0,8" SelectedItem="{Binding OverrideLabel}">
+                        <domain:DefectType>None</domain:DefectType>
+                        <domain:DefectType>Scratch</domain:DefectType>
+                        <domain:DefectType>CrackChip</domain:DefectType>
+                        <domain:DefectType>Contamination</domain:DefectType>
+                        <domain:DefectType>MarkingDefect</domain:DefectType>
+                        <domain:DefectType>LeadDefect</domain:DefectType>
+                      </ComboBox>
+                      <Button Height="36" Command="{Binding OverrideCommand}" Content="Submit Override" Background="#EF6C00" Foreground="White" FontWeight="SemiBold" />
+
+                      <TextBlock Margin="0,12,0,0" Foreground="#2E7D32" FontWeight="SemiBold" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+                      <TextBlock Margin="0,4,0,0" Foreground="#C62828" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </ScrollViewer>
+                </GroupBox>
+              </Grid>
+            </Grid>
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </Grid>
+
+    <!-- MODAL OVERLAY 1: USER LOGIN / SWITCH USER -->
+    <!-- The DataContext is set first; the Visibility path is then relative to it. -->
+    <Grid Background="#88000000" DataContext="{Binding Auth}" Visibility="{Binding IsLoginDialogOpen, Converter={StaticResource BoolToVis}}">
+      <Border Width="400" Padding="20" Background="White" CornerRadius="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel>
+          <TextBlock FontSize="18" FontWeight="Bold" Foreground="#263238" Text="Station Authentication" />
+          <TextBlock Margin="0,4,0,16" FontSize="12" Foreground="#78909C" Text="Log in with station credentials to access privileged functions." />
+
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Username" />
+          <TextBox Height="30" Margin="0,4,0,12" VerticalContentAlignment="Center" Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}" />
+
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Password" />
+          <PasswordBox Height="30" Margin="0,4,0,14" VerticalContentAlignment="Center" views:PasswordBoxBinding.Password="{Binding Password}" />
+
+          <TextBlock Margin="0,0,0,12" Foreground="#C62828" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="80" Height="32" Margin="0,0,8,0" Command="{Binding CloseLoginDialogCommand}" Content="Cancel" />
+            <Button Width="90" Height="32" Command="{Binding LoginCommand}" Content="Log in" Background="#1565C0" Foreground="White" FontWeight="SemiBold" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- MODAL OVERLAY 2: ELECTRONIC SIGN-OFF ON RECIPE CHANGE -->
+    <Grid Background="#88000000" DataContext="{Binding RecipeEditor}" Visibility="{Binding IsSignOffDialogOpen, Converter={StaticResource BoolToVis}}">
+      <Border Width="480" Padding="20" Background="White" CornerRadius="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel>
+          <TextBlock FontSize="18" FontWeight="Bold" Foreground="#00796B" Text="Electronic Sign-Off Required" />
+          <TextBlock Margin="0,4,0,16" FontSize="12" Foreground="#555555" Text="Under change-control policy, recipe alterations require re-entering your password and documenting a non-empty engineering justification." TextWrapping="Wrap" />
+
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Password Re-Authentication" />
+          <PasswordBox Height="30" Margin="0,4,0,12" VerticalContentAlignment="Center" views:PasswordBoxBinding.Password="{Binding SignOffPassword}" />
+
+          <TextBlock Style="{StaticResource FieldLabel}" Text="Change Reason / Justification" />
+          <TextBox Height="70" Margin="0,4,0,14" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Text="{Binding SignOffReason, UpdateSourceTrigger=PropertyChanged}" />
+
+          <TextBlock Margin="0,0,0,12" Foreground="#C62828" Text="{Binding ErrorMessage}" TextWrapping="Wrap" />
+
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="80" Height="32" Margin="0,0,8,0" Command="{Binding CancelSignOffCommand}" Content="Cancel" />
+            <Button Width="150" Height="32" Command="{Binding SubmitSignOffCommand}" Content="Sign &amp; Commit Change" Background="#00796B" Foreground="White" FontWeight="SemiBold" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

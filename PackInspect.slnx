@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PackInspect.App/PackInspect.App.csproj" />
+    <Project Path="src/PackInspect.Core/PackInspect.Core.csproj" />
+    <Project Path="src/PackInspect.Data/PackInspect.Data.csproj" />
+    <Project Path="src/PackInspect.Devices/PackInspect.Devices.csproj" />
+    <Project Path="src/PackInspect.LegacyDriver/PackInspect.LegacyDriver.vbproj" />
+    <Project Path="src/PackInspect.Simulator/PackInspect.Simulator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PackInspect.Tests/PackInspect.Tests.csproj" />
+  </Folder>
+</Solution>
