@@ -296,7 +296,15 @@ public class SimulatorStationTests
             await data.GetRequiredService<DatabaseInitializer>().InitializeAsync(TestToken);
             var recipes = await data.GetRequiredService<IRecipeStore>().GetAllAsync(TestToken);
 
-            var modbusOptions = new ModbusOptions { Port = simulator.ModbusPort, StatusPollInterval = TimeSpan.FromMilliseconds(5) };
+            // Communication timeouts are generous here. On a busy CI runner a loopback
+            // reply can take over a second, and that is the runner being slow, not a
+            // PLC fault. Fault behaviour is tested by injecting faults, not by load.
+            var modbusOptions = new ModbusOptions
+            {
+                Port = simulator.ModbusPort,
+                StatusPollInterval = TimeSpan.FromMilliseconds(5),
+                RequestTimeout = TimeSpan.FromSeconds(5),
+            };
             var connection = new ModbusConnection(modbusOptions);
             var plc = new ModbusPlc(connection, modbusOptions);
             var axis = new ModbusMotionAxis(connection, modbusOptions);
@@ -322,6 +330,7 @@ public class SimulatorStationTests
                 new MachineOptions
                 {
                     PollInterval = TimeSpan.FromMilliseconds(20),
+                    HeartbeatTimeout = TimeSpan.FromSeconds(10),
                     HomingTimeout = homingTimeout ?? TimeSpan.FromSeconds(10),
                 },
                 TimeProvider.System,
