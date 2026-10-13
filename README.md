@@ -149,6 +149,8 @@ dotnet test --solution PackInspect.slnx              # unit and integration test
 dotnet format PackInspect.slnx --verify-no-changes   # formatting check
 ```
 
+![Automated test suite passing 198 tests with zero failures](docs/images/test-results.png)
+
 The integration tests host the simulator in-process on free ports, so nothing
 needs to be started first. CI runs the same three steps on every push, plus a
 check for vulnerable packages.
@@ -176,10 +178,12 @@ All taken from the app running against the simulator.
 
 | | |
 |---|---|
-| ![Alarm after an injected door-open fault](docs/images/door-open-alarm.png) | ![Sign-off dialog for a recipe change](docs/images/recipe-sign-off.png) |
-| The guard door opened in the simulator: motion stops and `DOOR_OPEN` is raised | A recipe change asks for the password again and a reason |
-| ![Audit trail](docs/images/audit-trail.png) | ![AI review tab](docs/images/ai-review.png) |
-| The audit trail records who, when, old value, new value and reason | The AI label next to the rule-based result. Good units labelled `LeadDefect` are the classifier's false calls |
+| ![Lot completed with yield and inspection results](docs/images/project-result.png) | ![Alarm after an injected door-open fault](docs/images/door-open-alarm.png) |
+| Production tab after completing a 30-unit lot with 63.3% yield and defect sorting | The guard door opened in the simulator: motion stops and `DOOR_OPEN` is raised |
+| ![Sign-off dialog for a recipe change](docs/images/recipe-sign-off.png) | ![Audit trail](docs/images/audit-trail.png) |
+| A recipe change asks for the password again and a reason | The audit trail records who, when, old value, new value and reason |
+| ![AI review tab](docs/images/ai-review.png) | |
+| The AI label next to the rule-based result. Good units labelled `LeadDefect` are the classifier's false calls | |
 
 ## Limits
 
